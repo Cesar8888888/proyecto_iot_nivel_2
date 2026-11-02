@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>ISS Tracker - IES La Vereda</title>
+
+    <!-- Leaflet Mapa -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #38bdf8;
+            margin: 0 0 10px 0;
+        }
+
+        /* 1. Métricas Rápidas */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .metric-card {
+            background-color: #1e293b;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #334155;
+        }
+
+        .metric-card span {
+            display: block;
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #38bdf8;
+            margin-top: 5px;
+        }
+
+        /* 2. Mapa */
+        #map {
+            height: 380px;
+            border-radius: 10px;
+            border: 1px solid #334155;
+        }
+
+        /* 3. Cuadrícula de Paneles de Grafana */
+        .grafana-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+        }
+
+        .grafana-card {
+            background-color: #1e293b;
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid #334155;
+        }
+
+        .grafana-card h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1rem;
+            color: #94a3b8;
+        }
+
+        .grafana-card iframe {
+            width: 100%;
+            height: 300px;
+            border: none;
+            border-radius: 6px;
+        }
+
+        /* Para tablas anchas de PostgreSQL que ocupen todo el ancho */
+        .full-width {
+            grid-column: 1 / -1;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Tracker ISS - IES La Vereda</h1>
+
+        <!-- Métricas Rápidas -->
+        <div class="metrics-grid">
+            <div class="metric-card">Latitud <span id="lat">0.0</span></div>
+            <div class="metric-card">Longitud <span id="lon">0.0</span></div>
+            <div class="metric-card">Altitud <span id="alt">0.0 km</span></div>
+            <div class="metric-card">Velocidad <span id="vel">0.0 km/h</span></div>
+        </div>
+
+        <!-- Mapa de Leaflet -->
+        <div id="map"></div>
+
+        <!-- Sección de Paneles de Grafana Organizados -->
+        <h2>Panel de control</h2>
+
+        <div class="grafana-grid">
+            
+                <div class="grafana-card">
+                    <h3>Velocidad Máxima Hoy</h3>
+                    <iframe src="http://localhost:3000/d-solo/addgx7g/iss-proyecto?timezone=browser&refresh=5s&orgId=1&panelId=panel-11" width="450" height="200" frameborder="0"></iframe>
+                </div>
+
+                <div class="grafana-card">
+                    <h3>Altitud Mínima Hoy</h3>
+                    <iframe src="http://localhost:3000/d-solo/addgx7g/iss-proyecto?timezone=browser&refresh=5s&orgId=1&panelId=panel-12" width="450" height="200" frameborder="0"></iframe>
+                </div>
+                <div class="grafana-card full-width">
+                    <h3>Histórico de Telemetría (PostgreSQL)</h3>
+                    <iframe src="http://localhost:3000/d-solo/addgx7g/iss-proyecto?timezone=browser&refresh=5s&orgId=1&panelId=panel-8" width="450" height="200" frameborder="0"></iframe>
+                </div>
+                <div class="grafana-card full-width">
+                    <h3>Resumen de Jornadas Anteriores</h3>
+                    <iframe src="http://localhost:3000/d-solo/addgx7g/iss-proyecto?timezone=browser&refresh=5s&orgId=1&panelId=panel-13" width="450" height="200" frameborder="0"></iframe>
+                </div>
+                <div class="grafana-card full-width">
+                    <h3>Auditoría y Logs del Backend</h3>
+                    <iframe src="http://localhost:3000/d-solo/addgx7g/iss-proyecto?timezone=browser&refresh=5s&orgId=1&panelId=panel-10" width="450" height="200" frameborder="0"></iframe>
+                </div>
+        </div>
+    </div>
+
+    <!-- Script de Mapa -->
+    <script>
+        const map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        const issIcon = L.icon({
+            iconUrl: 'https://upload.wikimedia.org/wikipedia/commons/d/d0/International_Space_Station.svg',
+            iconSize: [45, 45],
+            iconAnchor: [22, 22]
+        });
+
+        const marker = L.marker([0, 0], {icon: issIcon}).addTo(map);
+
+        async function actualizarPosicion() {
+            try {
+                const res = await fetch('/api/iss/actual');
+                const data = await res.json();
+
+                if (data.latitude !== 0) {
+                    marker.setLatLng([data.latitude, data.longitude]);
+                    map.panTo([data.latitude, data.longitude]);
+
+                    document.getElementById('lat').innerText = data.latitude.toFixed(4);
+                    document.getElementById('lon').innerText = data.longitude.toFixed(4);
+                    document.getElementById('alt').innerText = data.altitude.toFixed(1) + " km";
+                    document.getElementById('vel').innerText = Math.round(data.velocity) + " km/h";
+                }
+            } catch (e) {
+                console.error("Error al actualizar la posición:", e);
+            }
+        }
+
+        actualizarPosicion();
+        setInterval(actualizarPosicion, 2000);
+    </script>
+</body>
+</html>
